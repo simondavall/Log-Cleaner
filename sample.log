@@ -1,0 +1,4 @@
+[START][2026-01-30 11:44:08] LSP logging initiated
+[ERROR][2026-01-30 11:44:08] ...p/_transport.lua:36	"rpc"	"clangd"	"stderr"	"E[11:44:08.506] offsetEncoding capability is a deprecated clangd extension that'll go away with clangd 23. Migrate to standard positionEncodings capability introduced by LSP 3.17\n"
+[START][2026-01-30 11:52:16] LSP logging initiated
+[ERROR][2026-01-30 11:52:16] ...p/_transport.lua:36	"rpc"	"clangd"	"stderr"	"E[11:52:16.580] offsetEncoding capability is a deprecated clangd extension that'll go away with clangd 23. Migrate to standard positionEncodings capability introduced by LSP 3.17\n"

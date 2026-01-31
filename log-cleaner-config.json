@@ -1,0 +1,24 @@
+{
+  "files": {
+    "sample.log": [
+      [
+        "str1",
+        "str2"
+      ],
+      [
+        "str3",
+        "str4",
+        "str9"
+      ]
+    ],
+    "sample2.log": [
+      [
+        "str5"
+      ],
+      [
+        "str7",
+        "str8"
+      ]
+    ]
+  }
+}
