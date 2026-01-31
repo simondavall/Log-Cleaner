@@ -4,9 +4,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #define _GNU_SOURCE
 #define INIT_LINES_SIZE 1000
-#define MAX_LOG_FILES 100
 #define CONFIG_FILE_SIZE 4096
 
 typedef struct {
@@ -23,20 +23,59 @@ typedef struct {
 int read_file(char *str[], const char *filepath);
 void dispose_read_file(char *str[], int count);
 void *m_alloc(void *ptr, size_t size, const char *err_msg);
-Config *get_config(char *log_file_name, char *config_file);
+Config *get_config(const char *log_file_name, char *config_file);
 void delete_config(Config *config);
+char *create_timestamped_file_path(const char *filename, const char *prefix);
 
-void clean_file(char *file_path) {
+const char *get_filename(const char *path) {
+  const char *last_slash = strrchr(path, '/');
+  return last_slash ? last_slash + 1 : path;
+}
+
+void write_line_to_file() {
+  FILE *filePtr;
+  filePtr = fopen("output.txt", "w"); // Open file for writing
+
+  if (filePtr == NULL) {
+    printf("Error opening file!\n");
+    exit(1);
+  }
+
+  fprintf(filePtr, "Hello, World!\n"); // Write a line to the file
+  fclose(filePtr);                     // Close the file
+}
+
+void clean_file(const char *file_path, Config *config) {
   char *lines[INIT_LINES_SIZE];
 
   int line_count = read_file(lines, file_path);
+
+  char *cleaned_filename = create_timestamped_file_path(file_path, "cleaned");
+  FILE *cleaned_filePtr;
+  cleaned_filePtr = fopen(cleaned_filename, "w");
+  if (cleaned_filePtr == NULL) {
+    printf("Error opening %s\n", cleaned_filename);
+    exit(EXIT_FAILURE);
+  }
+  free(cleaned_filename);
+
+  char *removed_filename = create_timestamped_file_path(file_path, "removed");
+  FILE *removed_filePtr;
+  removed_filePtr = fopen(removed_filename, "w");
+  if (removed_filePtr == NULL) {
+    printf("Error opening %s\n", removed_filename);
+    exit(EXIT_FAILURE);
+  }
+  free(removed_filename);
 
   for (int j = 0; j < line_count; j++) {
     // test line against match criteria
     bool match = true;
     if (match) {
+      fprintf(removed_filePtr, "%s", lines[j]);
       // write to removed entries file
     } else {
+      fprintf(cleaned_filePtr, "%s", lines[j]);
       // write to cleaned log file
     }
 
@@ -45,44 +84,48 @@ void clean_file(char *file_path) {
     printf("Line %2d: '%s'\n", j, lines[j]);
   }
 
+  fclose(removed_filePtr);
+  fclose(cleaned_filePtr);
+
   dispose_read_file(lines, line_count);
 }
 
 int main(int argc, char *argv[]) {
 
-  // todo: check args and report usage
-  // todo: strip log file name from path
-  printf("Args count: %d\n", argc);
-  char *filename = argv[1];
+  if (argc < 3) {
+    printf("Print out Usage for user: Need filepath amd config_file");
+    return EXIT_FAILURE;
+  }
+
+  char *file_path = argv[1];
+  const char *filename = get_filename(file_path);
   char *config_file = argv[2];
   Config *config = get_config(filename, config_file);
 
-  if (config == NULL){
-    printf("Could not find config information for log file '%s'.\nCheck the '%s' file for a '%s' section.\n", filename, config_file, filename);
+  if (config == NULL) {
+    printf("Could not find config information for log file '%s'.\nCheck the "
+           "'%s' file for a '%s' section.\n",
+           filename, config_file, filename);
     exit(EXIT_FAILURE);
   }
 
-  printf("Log_File: %s\n", config->log_file);
-  printf("Identifier count: %d\n", config->identifier_count);
-  for (int i = 0; i < config->identifier_count; i++) {
-    printf("Identifier item count %d\n", config->identifiers[i]->length);
-    for (int j = 0; j < config->identifiers[i]->length; j++) {
-      printf("Identifier item: %s\n", config->identifiers[i]->items[j]);
-      printf("\tIdentifier: %s\n", config->identifiers[i]->items[j]);
-    }
-  }
+  // printf("Log_File: %s\n", config->log_file);
+  // printf("Identifier count: %d\n", config->identifier_count);
+  // for (int i = 0; i < config->identifier_count; i++) {
+  //   printf("Identifier item count %d\n", config->identifiers[i]->length);
+  //   for (int j = 0; j < config->identifiers[i]->length; j++) {
+  //     printf("Identifier item: %s\n", config->identifiers[i]->items[j]);
+  //     printf("\tIdentifier: %s\n", config->identifiers[i]->items[j]);
+  //   }
+  // }
 
+  clean_file(file_path, config);
   delete_config(config);
 
-  for (int i = 1; i < argc; ++i) {
-    clean_file(filename);
-  }
-
-  printf("Hello %s\n", "World");
   return EXIT_SUCCESS;
 }
 
-Config *get_config(char *log_file_name, char *config_file) {
+Config *get_config(const char *log_file_name, char *config_file) {
   FILE *fp = fopen(config_file, "r");
   if (!fp) {
     printf("Error: Unable to open the file %s. Check spelling and that it "
@@ -228,6 +271,36 @@ void dispose_read_file(char *str[], int count) {
   for (int i = 0; i < count; i++) {
     free(str[i]);
   }
+}
+
+char *create_timestamped_file_path(const char *file_path, const char *prefix) {
+  char base[256] = {0};
+  char timestamp[20];
+  char *ext;
+  time_t now = time(NULL);
+  struct tm *t = localtime(&now);
+
+  const char *fname = get_filename(file_path);
+
+  ext = strrchr(fname, '.');
+  if (ext && strcmp(ext, ".log") == 0) {
+    size_t len = ext - fname;
+    strncpy(base, fname, len);
+    base[len] = '\0';
+  } else {
+    strcpy(base, fname);
+  }
+
+  strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", t);
+
+  size_t dir_len = fname - file_path;
+  size_t new_len = dir_len + strlen(prefix) + 1 + strlen(base) + 1 + strlen(timestamp) + 5; // +5 for "_", ".log", \0
+  char *new_file_path = NULL;
+  new_file_path = m_alloc(new_file_path, new_len, "new file path");
+
+  snprintf(new_file_path, new_len, "%.*s%s_%s_%s.log", (int)dir_len, file_path, prefix, base, timestamp);
+
+  return new_file_path; // Caller must free()
 }
 
 void *m_alloc(void *ptr, size_t size, const char *field_name) {
