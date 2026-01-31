@@ -1,14 +1,13 @@
 {
   "files": {
+    "lsp.log": [
+      [
+        "offsetEncoding capability is a deprecated clangd extension that'll go away with clangd 23."
+      ]
+    ],
     "sample.log": [
       [
-        "str1",
-        "str2"
-      ],
-      [
-        "str3",
-        "str4",
-        "str9"
+        "offsetEncoding capability is a deprecated clangd extension that'll go away with clangd 23."
       ]
     ],
     "sample2.log": [
