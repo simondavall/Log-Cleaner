@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#define VERSION "v1.0.0"
 // program limitation: max config size of 4k
 #define MAX_CONFIG_FILE_SIZE 4096
 
@@ -256,7 +257,7 @@ void processArgs(int argc, char *argv[], Settings *settings) {
       settings->saveRemovedItems = true;
       break;
     case 'v':
-      printf("Version 1.0\n");
+      printf("%s\n", VERSION);
       exit(EXIT_SUCCESS);
     case 'h':
     default:
@@ -269,7 +270,7 @@ void processArgs(int argc, char *argv[], Settings *settings) {
     fprintf(stderr, "Error: Two file paths are required.\n");
     show_usage();
   }
-
+  
   settings->file_path = argv[optind];
   settings->config_file = argv[optind + 1];
 }
