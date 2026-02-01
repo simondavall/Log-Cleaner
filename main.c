@@ -1,5 +1,6 @@
 #define _GNU_SOURCE
 #include "cJSON.h"
+#include <getopt.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -20,6 +21,12 @@ typedef struct {
   int identifier_count;
 } Config;
 
+typedef struct {
+  char *file_path;
+  char *config_file;
+  bool saveRemovedItems;
+} Settings;
+
 void clean_file(const char *file_path, Config *config);
 char *create_timestamped_file_path(const char *filename, const char *prefix);
 void delete_config(Config *config);
@@ -27,9 +34,21 @@ void dispose_read_file(char *str[], int count);
 Config *get_config(const char *log_file_name, char *config_file);
 const char *get_filename(const char *path);
 void *m_alloc(void *ptr, size_t size, const char *err_msg);
+void processArgs(int argc, char **argv, Settings *setttings);
 int read_file(char *str[], const char *filepath);
+Settings *settings_new();
+void show_usage();
+
 
 int main(int argc, char *argv[]) {
+
+  Settings *settings = NULL;
+  processArgs(argc, argv, settings);
+
+  if (argc > 1 && strcmp(argv[1], "--version") == 0) {
+    printf("Version 1.0.0\n");
+    return EXIT_SUCCESS;
+  }
 
   if (argc < 3) {
     // todo: parse args and provide usage.
@@ -55,111 +74,60 @@ int main(int argc, char *argv[]) {
   return EXIT_SUCCESS;
 }
 
-Config *get_config(const char *log_file_name, char *config_file) {
-  FILE *fp = fopen(config_file, "r");
-  if (!fp) {
-    printf("Error: Unable to open the file %s. Check spelling and that it "
-           "exists.\n",
-           config_file);
-    exit(EXIT_FAILURE);
-  }
+void processArgs(int argc, char *argv[], Settings *settings) {
+  int ch;
 
-  char json_string[CONFIG_FILE_SIZE];
-  int len = fread(json_string, 1, sizeof(json_string), fp);
-  fclose(fp);
+  char *filepath1 = NULL;
+  char *filepath2 = NULL;
 
-  if (len <= 0){
-    printf("No config set in config file '%s'", config_file);
-    exit(EXIT_FAILURE);
-  }
-  cJSON *root = cJSON_Parse(json_string);
-  if (!root) {
-    printf("Parse error: %s\n", cJSON_GetErrorPtr());
-    exit(EXIT_FAILURE);
-  }
+  // Define long options
+  static struct option long_options[] = {
+      {"help",    no_argument, NULL, 'h'},
+      {"version", no_argument, NULL, 'v'},
+      {"retain",  no_argument, NULL, 'r'},
+      {0,         0,           0,    0  }
+  };
 
-  cJSON *files = cJSON_GetObjectItemCaseSensitive(root, "files");
-  if (!cJSON_IsObject(files)) {
-    printf("Invalid 'files' object.\n");
-    cJSON_Delete(root);
-    exit(EXIT_FAILURE);
-  }
-
-  Config *config = NULL;
-
-  cJSON *log_file;
-  cJSON_ArrayForEach(log_file, files) {
-    if (strcmp(log_file->string, log_file_name) != 0)
-      continue;
-
-    config = m_alloc(config, sizeof(Config), "config item");
-    config->log_file = NULL;
-    config->log_file =
-        m_alloc(config->log_file, sizeof(strlen(log_file->string)) + 1,
-                "log file name in config");
-    strcpy(config->log_file, log_file->string);
-
-    cJSON *array = log_file;
-    int size = cJSON_GetArraySize(array);
-    if (size <= 0) { // error in config
-      printf("No identifier items set for %s in config", log_file_name);
-      exit(EXIT_FAILURE);
+  // Process options
+  while ((ch = getopt_long(argc, argv, "hv", long_options, NULL)) != -1) {
+    switch (ch) {
+    case 'r':
+      // Comment
+      // used to set whether removed items are saved to another file prefixed with 'removed'
+      // if the switch is not present, the removed items are just listed to the console.
+      settings->saveRemovedItems = true;
+      break;
+    case 'v':
+      printf("Version 1.0\n");
+      exit(EXIT_SUCCESS);
+    case 'h':
+    default:
+      show_usage();
     }
-
-    config->identifiers = NULL;
-    config->identifiers = m_alloc(
-        config->identifiers, size * sizeof(Identifier *), "identifiers list");
-    config->identifier_count = size;
-
-    for (int i = 0; i < size; i++) {
-
-      cJSON *inner_array = cJSON_GetArrayItem(array, i);
-      if (!cJSON_IsArray(inner_array))
-        continue;
-
-      Identifier *identifier = NULL;
-      identifier = m_alloc(identifier, sizeof(Identifier), "config identifier");
-      config->identifiers[i] = identifier;
-
-      int inner_size = cJSON_GetArraySize(inner_array);
-      identifier->length = inner_size;
-      if (inner_size <= 0)
-        continue;
-
-      identifier->items = NULL;
-      identifier->items = m_alloc(
-          identifier->items, inner_size * sizeof(char *), "identifier items");
-
-      for (int j = 0; j < inner_size; j++) {
-        cJSON *item = cJSON_GetArrayItem(inner_array, j);
-        if (cJSON_IsString(item)) {
-          char *str = NULL;
-          str = m_alloc(str, strlen(item->valuestring) + 1,
-                        "item string in config");
-          strcpy(str, item->valuestring);
-          config->identifiers[i]->items[j] = str;
-        }
-      }
-    }
-    break;
   }
 
-  cJSON_Delete(root);
+  // Process positional arguments
+  if (optind + 2 > argc) {
+    fprintf(stderr, "Error: Two file paths are required.\n");
+    show_usage();
+  }
 
-  return config;
+  settings->file_path = argv[optind];
+  settings->config_file = argv[optind + 1];
+
+  // Now use filepath1, filepath2, r_flag, s_flag, etc.
+  printf("File 1: %s\n", filepath1);
+  printf("File 2: %s\n", filepath2);
 }
 
-// Free the memory allocated to config
-void delete_config(Config *config) {
-  for (int i = 0; i < config->identifier_count; i++) {
-    for (int j = 0; j < config->identifiers[i]->length; j++) {
-      free(config->identifiers[i]->items[j]);
-    }
-    free(config->identifiers[i]->items);
-    free(config->identifiers[i]);
-  }
-  free(config->identifiers);
-  free(config);
+void show_usage() {
+  printf("Usage: program [options] <log_filepath> <config_filepath>\n");
+  printf("Options:\n");
+  printf("  --help     Show this help message\n");
+  printf("  --version  Show version information\n");
+  printf("  -r         Enable option r\n");
+  printf("  -s         Enable option s\n");
+  exit(EXIT_SUCCESS);
 }
 
 void clean_file(const char *file_path, Config *config) {
@@ -219,6 +187,108 @@ void clean_file(const char *file_path, Config *config) {
   free(cleaned_filename);
   free(removed_filename);
   dispose_read_file(lines, line_count);
+}
+
+Config *get_config(const char *log_file_name, char *config_file) {
+  FILE *fp = fopen(config_file, "r");
+  if (!fp) {
+    printf("Error: Unable to open the file %s. Check spelling and that it "
+           "exists.\n",
+           config_file);
+    exit(EXIT_FAILURE);
+  }
+
+  char json_string[CONFIG_FILE_SIZE];
+  int len = fread(json_string, 1, sizeof(json_string), fp);
+  fclose(fp);
+
+  if (len <= 0) {
+    printf("No config set in config file '%s'", config_file);
+    exit(EXIT_FAILURE);
+  }
+  cJSON *root = cJSON_Parse(json_string);
+  if (!root) {
+    printf("Parse error: %s\n", cJSON_GetErrorPtr());
+    exit(EXIT_FAILURE);
+  }
+
+  cJSON *files = cJSON_GetObjectItemCaseSensitive(root, "files");
+  if (!cJSON_IsObject(files)) {
+    printf("Invalid 'files' object.\n");
+    cJSON_Delete(root);
+    exit(EXIT_FAILURE);
+  }
+
+  Config *config = NULL;
+
+  cJSON *log_file;
+  cJSON_ArrayForEach(log_file, files) {
+    if (strcmp(log_file->string, log_file_name) != 0)
+      continue;
+
+    config = m_alloc(config, sizeof(Config), "config item");
+    config->log_file = NULL;
+    config->log_file = m_alloc(config->log_file, sizeof(strlen(log_file->string)) + 1, "log file name in config");
+    strcpy(config->log_file, log_file->string);
+
+    cJSON *array = log_file;
+    int size = cJSON_GetArraySize(array);
+    if (size <= 0) { // error in config
+      printf("No identifier items set for %s in config", log_file_name);
+      exit(EXIT_FAILURE);
+    }
+
+    config->identifiers = NULL;
+    config->identifiers = m_alloc(config->identifiers, size * sizeof(Identifier *), "identifiers list");
+    config->identifier_count = size;
+
+    for (int i = 0; i < size; i++) {
+
+      cJSON *inner_array = cJSON_GetArrayItem(array, i);
+      if (!cJSON_IsArray(inner_array))
+        continue;
+
+      Identifier *identifier = NULL;
+      identifier = m_alloc(identifier, sizeof(Identifier), "config identifier");
+      config->identifiers[i] = identifier;
+
+      int inner_size = cJSON_GetArraySize(inner_array);
+      identifier->length = inner_size;
+      if (inner_size <= 0)
+        continue;
+
+      identifier->items = NULL;
+      identifier->items = m_alloc(identifier->items, inner_size * sizeof(char *), "identifier items");
+
+      for (int j = 0; j < inner_size; j++) {
+        cJSON *item = cJSON_GetArrayItem(inner_array, j);
+        if (cJSON_IsString(item)) {
+          char *str = NULL;
+          str = m_alloc(str, strlen(item->valuestring) + 1, "item string in config");
+          strcpy(str, item->valuestring);
+          config->identifiers[i]->items[j] = str;
+        }
+      }
+    }
+    break;
+  }
+
+  cJSON_Delete(root);
+
+  return config;
+}
+
+// Free the memory allocated to config
+void delete_config(Config *config) {
+  for (int i = 0; i < config->identifier_count; i++) {
+    for (int j = 0; j < config->identifiers[i]->length; j++) {
+      free(config->identifiers[i]->items[j]);
+    }
+    free(config->identifiers[i]->items);
+    free(config->identifiers[i]);
+  }
+  free(config->identifiers);
+  free(config);
 }
 
 // This function reads lines from a specified file into
@@ -291,15 +361,19 @@ char *create_timestamped_file_path(const char *file_path, const char *prefix) {
   strftime(timestamp, sizeof(timestamp), "%Y%m%d_%H%M%S", t);
 
   size_t dir_len = fname - file_path;
-  size_t new_len = dir_len + strlen(prefix) + 1 + strlen(base) + 1 +
-                   strlen(timestamp) + 5; // +5 for "_", ".log", \0
+  size_t new_len = dir_len + strlen(prefix) + 1 + strlen(base) + 1 + strlen(timestamp) + 5; // +5 for "_", ".log", \0
   char *new_file_path = NULL;
   new_file_path = m_alloc(new_file_path, new_len, "new file path");
 
-  snprintf(new_file_path, new_len, "%.*s%s_%s_%s.log", (int)dir_len, file_path,
-           prefix, base, timestamp);
+  snprintf(new_file_path, new_len, "%.*s%s_%s_%s.log", (int)dir_len, file_path, prefix, base, timestamp);
 
   return new_file_path; // Caller must free()
+}
+
+Settings *settings_new() {
+  Settings *settings = NULL;
+  settings->saveRemovedItems = false;
+  return settings;
 }
 
 void *m_alloc(void *ptr, size_t size, const char *field_name) {
