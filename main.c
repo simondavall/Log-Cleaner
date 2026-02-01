@@ -31,12 +31,10 @@ typedef struct {
 void clean_file(const char *file_path, const Config *config, Settings settings);
 char *create_timestamped_file_path(const char *filename, const char *prefix);
 void delete_config(Config *config);
-void dispose_read_file(char *str[], int count);
 Config *get_config(const char *log_file_name, char *config_file);
 const char *get_filename(const char *path);
 void *m_alloc(void *ptr, size_t size, const char *err_msg);
 void processArgs(int argc, char **argv, Settings *setttings);
-int read_file(char *str[], const char *filepath);
 void show_usage();
 
 int main(int argc, char *argv[]) {
