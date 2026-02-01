@@ -1,9 +1,12 @@
 CC=gcc
 CFLAGS=-Wall -Wextra -pedantic -std=c11
 
-.PHONY: test
-test: log-cleaner
+.PHONY: test1, test2
+test1: log-cleaner
 	./log-cleaner ~/Projects/C/Log-Cleaner/sample.log ./log-cleaner-config.json
+
+test2: log-cleaner
+	./log-cleaner --retain ~/Projects/C/Log-Cleaner/sample.log ./log-cleaner-config.json
 
 log-cleaner: main.o cJSON.o
 	$(CC) -o log-cleaner main.o cJSON.o $(CFLAGS)

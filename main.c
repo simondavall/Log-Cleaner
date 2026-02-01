@@ -7,8 +7,10 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+// todo: stream the log entries so that no max need apply
 #define INIT_LINES_SIZE 1000
-#define CONFIG_FILE_SIZE 4096
+// program limitation: max config size of 4k
+#define MAX_CONFIG_FILE_SIZE 4096
 
 typedef struct {
   char **items;
@@ -27,7 +29,7 @@ typedef struct {
   bool saveRemovedItems;
 } Settings;
 
-void clean_file(const char *file_path, Config *config);
+void clean_file(const char *file_path, const Config *config, Settings settings);
 char *create_timestamped_file_path(const char *filename, const char *prefix);
 void delete_config(Config *config);
 void dispose_read_file(char *str[], int count);
@@ -36,29 +38,16 @@ const char *get_filename(const char *path);
 void *m_alloc(void *ptr, size_t size, const char *err_msg);
 void processArgs(int argc, char **argv, Settings *setttings);
 int read_file(char *str[], const char *filepath);
-Settings *settings_new();
 void show_usage();
-
 
 int main(int argc, char *argv[]) {
 
-  Settings *settings = NULL;
-  processArgs(argc, argv, settings);
+  Settings settings = {.saveRemovedItems = false};
+  processArgs(argc, argv, &settings);
 
-  if (argc > 1 && strcmp(argv[1], "--version") == 0) {
-    printf("Version 1.0.0\n");
-    return EXIT_SUCCESS;
-  }
-
-  if (argc < 3) {
-    // todo: parse args and provide usage.
-    printf("Print out Usage for user: Need filepath amd config_file");
-    return EXIT_FAILURE;
-  }
-
-  char *file_path = argv[1];
+  char *file_path = settings.file_path;
   const char *filename = get_filename(file_path);
-  char *config_file = argv[2];
+  char *config_file = settings.config_file;
 
   Config *config = get_config(filename, config_file);
   if (config == NULL) {
@@ -68,69 +57,13 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  clean_file(file_path, config);
+  clean_file(file_path, config, settings);
   delete_config(config);
 
   return EXIT_SUCCESS;
 }
 
-void processArgs(int argc, char *argv[], Settings *settings) {
-  int ch;
-
-  char *filepath1 = NULL;
-  char *filepath2 = NULL;
-
-  // Define long options
-  static struct option long_options[] = {
-      {"help",    no_argument, NULL, 'h'},
-      {"version", no_argument, NULL, 'v'},
-      {"retain",  no_argument, NULL, 'r'},
-      {0,         0,           0,    0  }
-  };
-
-  // Process options
-  while ((ch = getopt_long(argc, argv, "hv", long_options, NULL)) != -1) {
-    switch (ch) {
-    case 'r':
-      // Comment
-      // used to set whether removed items are saved to another file prefixed with 'removed'
-      // if the switch is not present, the removed items are just listed to the console.
-      settings->saveRemovedItems = true;
-      break;
-    case 'v':
-      printf("Version 1.0\n");
-      exit(EXIT_SUCCESS);
-    case 'h':
-    default:
-      show_usage();
-    }
-  }
-
-  // Process positional arguments
-  if (optind + 2 > argc) {
-    fprintf(stderr, "Error: Two file paths are required.\n");
-    show_usage();
-  }
-
-  settings->file_path = argv[optind];
-  settings->config_file = argv[optind + 1];
-
-  // Now use filepath1, filepath2, r_flag, s_flag, etc.
-  printf("File 1: %s\n", filepath1);
-  printf("File 2: %s\n", filepath2);
-}
-
-void show_usage() {
-  printf("Usage: program [options] <log_filepath> <config_filepath>\n");
-  printf("Options:\n");
-  printf("  --help     Show this help message\n");
-  printf("  --version  Show version information\n");
-  printf("  -r         Enable option r\n");
-  printf("  -s         Enable option s\n");
-  exit(EXIT_SUCCESS);
-}
-
-void clean_file(const char *file_path, Config *config) {
+void clean_file(const char *file_path, const Config *config, Settings settings) {
   char *lines[INIT_LINES_SIZE];
 
   int line_count = read_file(lines, file_path);
@@ -143,12 +76,15 @@ void clean_file(const char *file_path, Config *config) {
     exit(EXIT_FAILURE);
   }
 
-  char *removed_filename = create_timestamped_file_path(file_path, "removed");
-  FILE *removed_filePtr;
-  removed_filePtr = fopen(removed_filename, "w");
-  if (removed_filePtr == NULL) {
-    printf("Error opening %s\n", removed_filename);
-    exit(EXIT_FAILURE);
+  FILE *removed_filePtr = NULL;
+  char *removed_filename = NULL;
+  if (settings.saveRemovedItems) {
+    removed_filename = create_timestamped_file_path(file_path, "removed");
+    removed_filePtr = fopen(removed_filename, "w");
+    if (removed_filePtr == NULL) {
+      printf("Error opening %s\n", removed_filename);
+      exit(EXIT_FAILURE);
+    }
   }
 
   for (int j = 0; j < line_count; j++) {
@@ -166,26 +102,27 @@ void clean_file(const char *file_path, Config *config) {
         break;
     }
     if (match) {
-      fprintf(removed_filePtr, "%s\n", lines[j]);
+      if (settings.saveRemovedItems)
+        fprintf(removed_filePtr, "%s\n", lines[j]);
+      printf("Removed: %s\n", lines[j]);
     } else {
       fprintf(cleaned_filePtr, "%s\n", lines[j]);
     }
   }
-
-  fclose(removed_filePtr);
+  if (settings.saveRemovedItems)
+    fclose(removed_filePtr);
   fclose(cleaned_filePtr);
 
-  printf("Replacing '%s' with '%s'", file_path, cleaned_filename);
+  // printf("Replacing '%s' with '%s'", file_path, cleaned_filename);
   if (rename(cleaned_filename, file_path) != 0) {
     printf("Unable to replace '%s' with the cleaned log file '%s'.\nFile is "
-           "likely locked by another process.\n",
+           "likely locked by another process.\nThis file will need to be replaced manually.\n",
            file_path, cleaned_filename);
   }
-  // todo: decide what to do with the removed items file (options: retain,
-  // delete, decide by config or command-line arg)
 
+  if (settings.saveRemovedItems)
+    free(removed_filename);
   free(cleaned_filename);
-  free(removed_filename);
   dispose_read_file(lines, line_count);
 }
 
@@ -198,7 +135,7 @@ Config *get_config(const char *log_file_name, char *config_file) {
     exit(EXIT_FAILURE);
   }
 
-  char json_string[CONFIG_FILE_SIZE];
+  char json_string[MAX_CONFIG_FILE_SIZE];
   int len = fread(json_string, 1, sizeof(json_string), fp);
   fclose(fp);
 
@@ -291,6 +228,52 @@ void delete_config(Config *config) {
   free(config);
 }
 
+void processArgs(int argc, char *argv[], Settings *settings) {
+  int ch;
+
+  // Define long options
+  static struct option long_options[] = {
+      {"help",    no_argument, NULL, 'h'},
+      {"version", no_argument, NULL, 'v'},
+      {"retain",  no_argument, NULL, 'r'},
+      {0,         0,           0,    0  }
+  };
+
+  // Process options
+  while ((ch = getopt_long(argc, argv, "hvr", long_options, NULL)) != -1) {
+    switch (ch) {
+    case 'r':
+      settings->saveRemovedItems = true;
+      break;
+    case 'v':
+      printf("Version 1.0\n");
+      exit(EXIT_SUCCESS);
+    case 'h':
+    default:
+      show_usage();
+    }
+  }
+
+  // Process positional arguments
+  if (optind + 2 > argc) {
+    fprintf(stderr, "Error: Two file paths are required.\n");
+    show_usage();
+  }
+
+  settings->file_path = argv[optind];
+  settings->config_file = argv[optind + 1];
+}
+
+void show_usage() {
+  printf("Usage: log-cleaner [options] <log_filepath> <config_filepath>\n");
+  printf("Options:\n");
+  printf("  --help, -h     Show this help message\n");
+  printf("  --version, -v  Show version information\n");
+  printf("  --retain, -r   Saves the removed log entries to a separate file in the same directory\n\t\t as the original log "
+         "file. 'removed_<log_file_name>_<timestamp>.log'\n\t\t Default: false\n");
+  exit(EXIT_SUCCESS);
+}
+
 // This function reads lines from a specified file into
 // the array provided. After use the dispose_read_file function
 // to free the memory allocated.
@@ -368,12 +351,6 @@ char *create_timestamped_file_path(const char *file_path, const char *prefix) {
   snprintf(new_file_path, new_len, "%.*s%s_%s_%s.log", (int)dir_len, file_path, prefix, base, timestamp);
 
   return new_file_path; // Caller must free()
-}
-
-Settings *settings_new() {
-  Settings *settings = NULL;
-  settings->saveRemovedItems = false;
-  return settings;
 }
 
 void *m_alloc(void *ptr, size_t size, const char *field_name) {
