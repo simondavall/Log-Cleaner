@@ -7,8 +7,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-// todo: stream the log entries so that no max need apply
-#define INIT_LINES_SIZE 1000
 // program limitation: max config size of 4k
 #define MAX_CONFIG_FILE_SIZE 4096
 
@@ -64,9 +62,12 @@ int main(int argc, char *argv[]) {
 }
 
 void clean_file(const char *file_path, const Config *config, Settings settings) {
-  char *lines[INIT_LINES_SIZE];
-
-  int line_count = read_file(lines, file_path);
+  FILE *log_file_ptr;
+  log_file_ptr = fopen(file_path, "rb");
+  if (log_file_ptr == NULL) {
+    printf("Error opening file: %s", file_path);
+    exit(EXIT_FAILURE);
+  }
 
   char *cleaned_filename = create_timestamped_file_path(file_path, "cleaned");
   FILE *cleaned_filePtr;
@@ -87,8 +88,14 @@ void clean_file(const char *file_path, const Config *config, Settings settings) 
     }
   }
 
-  for (int j = 0; j < line_count; j++) {
-    char *log_entry = lines[j];
+  int str_len;
+  char *log_entry = NULL;
+  size_t len = 0;
+  while ((str_len = (int)getline(&log_entry, &len, log_file_ptr)) != -1) {
+    log_entry[str_len - 1] = '\0';
+    if (strcmp(log_entry, "\0") == 0) // ignore empty strings
+      continue;
+
     bool match = true;
     for (int k = 0; k < config->identifier_count; k++) {
       match = true;
@@ -101,19 +108,24 @@ void clean_file(const char *file_path, const Config *config, Settings settings) 
       if (match)
         break;
     }
+
     if (match) {
       if (settings.saveRemovedItems)
-        fprintf(removed_filePtr, "%s\n", lines[j]);
-      printf("Removed: %s\n", lines[j]);
+        fprintf(removed_filePtr, "%s\n", log_entry);
+      printf("Removed: %s\n", log_entry);
     } else {
-      fprintf(cleaned_filePtr, "%s\n", lines[j]);
+      fprintf(cleaned_filePtr, "%s\n", log_entry);
     }
   }
+
+  if (log_entry)
+    free(log_entry);
+
   if (settings.saveRemovedItems)
     fclose(removed_filePtr);
   fclose(cleaned_filePtr);
+  fclose(log_file_ptr);
 
-  // printf("Replacing '%s' with '%s'", file_path, cleaned_filename);
   if (rename(cleaned_filename, file_path) != 0) {
     printf("Unable to replace '%s' with the cleaned log file '%s'.\nFile is "
            "likely locked by another process.\nThis file will need to be replaced manually.\n",
@@ -123,7 +135,6 @@ void clean_file(const char *file_path, const Config *config, Settings settings) 
   if (settings.saveRemovedItems)
     free(removed_filename);
   free(cleaned_filename);
-  dispose_read_file(lines, line_count);
 }
 
 Config *get_config(const char *log_file_name, char *config_file) {
@@ -239,7 +250,6 @@ void processArgs(int argc, char *argv[], Settings *settings) {
       {0,         0,           0,    0  }
   };
 
-  // Process options
   while ((ch = getopt_long(argc, argv, "hvr", long_options, NULL)) != -1) {
     switch (ch) {
     case 'r':
@@ -269,58 +279,15 @@ void show_usage() {
   printf("Options:\n");
   printf("  --help, -h     Show this help message\n");
   printf("  --version, -v  Show version information\n");
-  printf("  --retain, -r   Saves the removed log entries to a separate file in the same directory\n\t\t as the original log "
+  printf("  --retain, -r   Saves the removed log entries to a separate file in the same directory\n\t\t as the "
+         "original log "
          "file. 'removed_<log_file_name>_<timestamp>.log'\n\t\t Default: false\n");
   exit(EXIT_SUCCESS);
-}
-
-// This function reads lines from a specified file into
-// the array provided. After use the dispose_read_file function
-// to free the memory allocated.
-int read_file(char *str[], const char *filepath) {
-  FILE *fptr;
-  int line_count = 0;
-  void *str_ptr;
-  char *line = NULL;
-  size_t len = 0;
-  int str_len;
-
-  fptr = fopen(filepath, "rb");
-  if (fptr == NULL) {
-    printf("Error opening file: %s", filepath);
-    exit(EXIT_FAILURE);
-  }
-
-  while ((str_len = (int)getline(&line, &len, fptr)) != -1) {
-    line[str_len - 1] = '\0';
-    if (strcmp(line, "\0") == 0) // ignore empty strings
-      continue;
-    str_ptr = malloc(str_len);
-    if (str_ptr == NULL) {
-      printf("Error allocating memory during read line.\n");
-      exit(EXIT_FAILURE);
-    }
-    str[line_count] = str_ptr;
-    strncpy(str[line_count++], line, str_len);
-  }
-
-  fclose(fptr);
-  if (line)
-    free(line);
-  return line_count;
 }
 
 const char *get_filename(const char *path) {
   const char *last_slash = strrchr(path, '/');
   return last_slash ? last_slash + 1 : path;
-}
-
-// This function should be called in order to free memory
-// allocatied during the read_file function above.
-void dispose_read_file(char *str[], int count) {
-  for (int i = 0; i < count; i++) {
-    free(str[i]);
-  }
 }
 
 char *create_timestamped_file_path(const char *file_path, const char *prefix) {
