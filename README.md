@@ -22,14 +22,14 @@ Shout out to: Dave Gamble et al for their work on cJSON\
 https://github.com/DaveGamble/cJSON
 
 # Config structure #
-As an example, I have the following repeated entry in my lsp.log.\
+As an example, I have the following repeated entry in my lsp.log.
 ```text
 [ERROR][2026-01-30 11:44:08] ...p/_transport.lua:36	"rpc"	"clangd"	"stderr"	"E[11:44:08.506] offsetEncoding capability
 is a deprecated clangd extension that'll go away with clangd 23. Migrate to standard positionEncodings capability introduced by LSP 3.17"
 ```
 
-According to some digging...It’s not an error that breaks anything. It’s a deprecation warning coming from clangd, forwarded 
-into Neovim’s lsp.log. Neovim still works fine, which is why this shows up as stderr noise, not a crash.
+After doing some digging I find..."It’s not an error that breaks anything. It’s a deprecation warning coming from clangd, forwarded 
+into Neovim’s lsp.log. Neovim still works fine, which is why this shows up as stderr noise, not a crash."
 
 I want to remove these entries, so that other legitimate errors don't get hidden.
 
