@@ -1,5 +1,6 @@
 # Project specific
 log-cleaner
+log-cleaner-memcheck
 *.log
 
 ## Boilerplate inclusions

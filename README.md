@@ -88,3 +88,35 @@ This will take all the search criteria defined in log-cleaner-config.json in the
 and match it against all log entries. It it finds a match it will print the line to the console. Because the --retain option
 was set the log enrty will be add it to a newly created file 'removed_lsp_\<timestamp\>.log'
 
+# Make file options #
+Several recipes are available. Here are the descriptions:
+
+Create log-cleaner executable.
+```bash
+make log-cleaner
+```
+
+Create the executable with debugging symbols (for use with valgrind. memory checker)
+```bash
+make log-cleaner-memcheck
+```
+
+Note: Tests use the sample.json provided, but overwrite it. So either take a copy of the original
+to reset the original for a test re-run, or use `git restore sampl.json`
+
+Test 1: Build the executable and run with no options set on the sample.jsos provided.
+```bash
+make test1
+```
+
+Test 2: Build the executable and run with the `--retain` flag set, to create a 'removed' file
+which will contain the removed log entries.
+```bash
+make test2
+```
+
+Test 3: Build the log-cleaner-memcheck executable and run valgrind with it to perform a memory leak test. 
+This requires valgrind to be instqalled. `sudo apt install valgrind` or equivalent.
+```bash
+make test3
+```

@@ -146,19 +146,23 @@ Config *get_config(const char *log_file_name, char *config_file) {
   }
 
   char json_string[MAX_CONFIG_FILE_SIZE];
-  int len = fread(json_string, 1, sizeof(json_string), fp);
+  int len = fread(json_string, 1, sizeof(json_string) - 1, fp);
   fclose(fp);
 
   if (len <= 0) {
     printf("No config set in config file '%s'", config_file);
     exit(EXIT_FAILURE);
   }
+
+  // null terminate json_string
+  json_string[len] = '\0';
+
   cJSON *root = cJSON_Parse(json_string);
   if (!root) {
     printf("Parse error: %s\n", cJSON_GetErrorPtr());
     exit(EXIT_FAILURE);
   }
-
+  
   cJSON *files = cJSON_GetObjectItemCaseSensitive(root, "files");
   if (!cJSON_IsObject(files)) {
     printf("Invalid 'files' object.\n");
@@ -175,7 +179,7 @@ Config *get_config(const char *log_file_name, char *config_file) {
 
     config = m_alloc(config, sizeof(Config), "config item");
     config->log_file = NULL;
-    config->log_file = m_alloc(config->log_file, sizeof(strlen(log_file->string)) + 1, "log file name in config");
+    config->log_file = m_alloc(config->log_file, strlen(log_file->string) + 1, "log file name in config");
     strcpy(config->log_file, log_file->string);
 
     cJSON *array = log_file;
@@ -234,6 +238,7 @@ void delete_config(Config *config) {
     free(config->identifiers[i]->items);
     free(config->identifiers[i]);
   }
+  free(config->log_file);
   free(config->identifiers);
   free(config);
 }
