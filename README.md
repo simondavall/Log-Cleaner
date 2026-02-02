@@ -98,11 +98,11 @@ make log-cleaner
 
 Create the executable with debugging symbols (for use with valgrind. memory checker)
 ```bash
-make log-cleaner-memcheck
+make log-cleaner-dbg
 ```
 
 Note: Tests use the sample.json provided, but overwrite it. So either take a copy of the original
-to reset the original for a test re-run, or use `git restore sampl.json`
+to reset the original for a test re-run, or use `git restore sample.json`
 
 Test 1: Build the executable and run with no options set on the sample.jsos provided.
 ```bash
@@ -115,8 +115,8 @@ which will contain the removed log entries.
 make test2
 ```
 
-Test 3: Build the log-cleaner-memcheck executable and run valgrind with it to perform a memory leak test. 
-This requires valgrind to be instqalled. `sudo apt install valgrind` or equivalent.
+Test 3: Build the log-cleaner-dbg executable and run valgrind with it to perform a memory leak test. 
+This requires valgrind to be installed. `sudo apt install valgrind` or equivalent.
 ```bash
 make test3
 ```
