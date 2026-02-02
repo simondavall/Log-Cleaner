@@ -1,20 +1,20 @@
 # Log-Cleaner
 This project was inspired by excessive noise in my neovim logs. Specifically the lsp.log. 
 For me, there are certain errors, particularly relating to deprecations, that are described
-as errors that are of no consequence, and should be ignored.
-I am of the opinion that if an error message should be ignored, it shouldn't be there in the first
-place. (Or be able to be 'switched off').
-I like clean logs that report issues that should (and can) be addressed.
+as errors that are of no consequence, and should be ignored. I like clean logs that report issues 
+that should (and can) be addressed. I am of the opinion that if an error message should be ignored, 
+it shouldn't be there in the first place. (Or be able to be 'switched off'). In some cases, these 
+noisy entries cannot be suppressed. 
 
 So this log-cleaner, allows the user to remove log noise. I wanted to keep the implementation simple;
 provide some mechanism to identify noisy log entries, and remove them.
 
 I wanted to avoid using regex as a means of identifying the items, as regex has lead me down too
-many dark paths in the past. So I have devised a simple config sttucture allowing the user to setup
+many dark paths in the past. So I have devised a simple config structure allowing the user to set up
 a series of strings, for a given log entry. If all strings are present in a given log entry, then the log entry is a match
 and is removed.
 
-Note. This is a Linux only implementation.
+Note. This is a **Linux only** implementation.
 
 # Acknowledgments #
 cJSON - Copyright (c) 2009-2017 Dave Gamble and cJSON contributors\
